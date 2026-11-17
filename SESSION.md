@@ -17,11 +17,13 @@ Last Verified Task:
 P2-002
 
 Last Verified Commit:
-Unavailable; this workspace is not a Git repository.
+981b3afc47712843dc679a70f299c1e4ac636561 (pushed to origin/master)
 
-P0-032 remains visibly blocked: CI cannot be executed without initializing and pushing this workspace to its Git remote.
+P0-032 is complete: the project was pushed to `origin/master`, and GitHub Actions CI passed.
 
 ## Last Completed Work
+
+- Pushed commit `981b3afc47712843dc679a70f299c1e4ac636561` to `origin/master`; GitHub Actions run 44070384027 passed Go checks, frontend checks, and Docker image build.
 
 - Added MongoDB client configuration with bounded connection/server selection timeouts, max pool configuration, startup ping, graceful disconnect, and readiness health check.
 - Added MongoDB user persistence with a unique email index and MongoDB-backed sessions that store token hashes and use a TTL index.
@@ -113,7 +115,7 @@ Results:
 - With no SMTP configured in development, recovery returned explicit `503` rather than reporting a false success.
 - P2-001 workspace model tests and `go vet` passed.
 - P2-002 Go checks and MongoDB-backed repository integration test passed against the local development MongoDB.
-- CI still cannot be triggered or observed because this workspace is not a Git repository with a remote.
+- P0-032 foundation verification passed in GitHub Actions on commit `981b3afc47712843dc679a70f299c1e4ac636561`.
 
 ## Outstanding Issues
 
@@ -136,7 +138,7 @@ Results:
 
 ## Next Action
 
-Continue with P2-003, the workspace API routes and OpenAPI contract. Keep P0-032 blocked and visible until CI can run from the configured Git remote.
+Continue with P2-003, the workspace API routes and OpenAPI contract.
 
 ## Session Update Rules
 

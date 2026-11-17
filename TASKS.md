@@ -85,7 +85,7 @@ Last Updated: 2026-11-17
 - [x] P0-029 Configure linting
 - [x] P0-030 Configure CI
 - [x] P0-031 Configure Docker build
-- [!] P0-032 Verify complete foundation — GitHub Actions cannot run until this workspace is initialized and pushed to a Git remote
+- [x] P0-032 Verify complete foundation — GitHub Actions CI passed after pushing commit 981b3af
 
 ## 4. Phase 1 — Authentication
 
@@ -137,6 +137,8 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 P2-001 verification: `go test ./...` and `go vet ./...` passed. Tests cover constructor defaults, required-field validation, and JSON/BSON field mappings.
 
 P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness` passed. The integration test verifies owner-scoped get/list, global slug conflict including soft-deleted workspaces, and index creation. API startup now creates the workspace indexes.
+
+P0-032 verification: GitHub Actions CI run 44070384027 passed on commit `981b3afc47712843dc679a70f299c1e4ac636561`, including Go checks, frontend checks, and Docker image build.
 
 ## 6. Phase 3 — RBAC
 
@@ -338,7 +340,7 @@ A checked box without evidence is not accepted.
 
 ## 16. Blockers
 
-P0-032 remains blocked until this workspace is initialized and pushed to a Git remote; this does not block Phase 2 implementation.
+No blockers recorded.
 
 When a task is blocked, record:
 
