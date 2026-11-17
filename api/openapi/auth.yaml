@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Year Planner Auth API
+  title: Year Planner API
   version: 1.0.0
 servers:
   - url: /
@@ -206,7 +206,150 @@ paths:
           description: Logged out
         '403':
           description: Invalid CSRF token or request origin
+  /api/v1/workspaces:
+    post:
+      summary: Create a workspace owned by the authenticated user
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/origin'
+        - $ref: '#/components/parameters/csrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+      responses:
+        '201':
+          description: Workspace created
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the created workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          description: Invalid workspace request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid session
+        '403':
+          description: Invalid CSRF token or request origin
+        '409':
+          description: Workspace slug already exists
+        '500':
+          description: Workspace could not be created
+        '503':
+          description: Workspace service unavailable
+    get:
+      summary: List workspaces owned by the authenticated user
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Workspaces owned by the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workspace'
+        '401':
+          description: Missing or invalid session
+        '500':
+          description: Workspaces could not be listed
+        '503':
+          description: Workspace service unavailable
+  /api/v1/workspaces/{workspaceID}:
+    get:
+      summary: Get a workspace owned by the authenticated user
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: workspaceID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workspace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          description: Missing or invalid session
+        '404':
+          description: Workspace not found
+        '500':
+          description: Workspace could not be loaded
+        '503':
+          description: Workspace service unavailable
 components:
+  parameters:
+    origin:
+      in: header
+      name: Origin
+      required: true
+      schema:
+        type: string
+    csrfToken:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema:
+        type: string
+  schemas:
+    CreateWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+    Workspace:
+      type: object
+      required: [id, name, slug, ownerUserId, settings, schemaVersion, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        ownerUserId:
+          type: string
+          readOnly: true
+        settings:
+          type: object
+          additionalProperties: false
+        schemaVersion:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
   securitySchemes:
     sessionCookie:
       type: apiKey

@@ -24,6 +24,7 @@ import (
 	"yearplanner/internal/config"
 	"yearplanner/internal/store"
 	"yearplanner/internal/users"
+	"yearplanner/internal/workspaces"
 	apischema "yearplanner/openapi"
 )
 
@@ -37,6 +38,7 @@ const (
 type Server struct {
 	cfg           config.Config
 	repo          users.Repository
+	workspaceRepo workspaces.Repository
 	session       store.SessionRepository
 	database      store.Pinger
 	loginLimiter  auth.LoginRateLimiter
@@ -141,6 +143,21 @@ func NewServerWithAuthDependencies(
 	}
 }
 
+func NewServerWithWorkspaceRepository(
+	cfg config.Config,
+	repo users.Repository,
+	sessions store.SessionRepository,
+	database store.Pinger,
+	loginLimiter auth.LoginRateLimiter,
+	resetTokens auth.PasswordResetStore,
+	emailQueue auth.PasswordResetEmailQueue,
+	workspaceRepo workspaces.Repository,
+) *Server {
+	server := NewServerWithAuthDependencies(cfg, repo, sessions, database, loginLimiter, resetTokens, emailQueue)
+	server.workspaceRepo = workspaceRepo
+	return server
+}
+
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -162,6 +179,9 @@ func (s *Server) Router() http.Handler {
 		r.With(s.RequireAuth).Get("/auth/me", s.HandleMe)
 		r.With(s.RequireAuth).Patch("/auth/me", s.HandleUpdateProfile)
 		r.With(s.RequireAuth).Post("/auth/logout", s.HandleLogout)
+		r.With(s.RequireAuth).Post("/workspaces", s.HandleCreateWorkspace)
+		r.With(s.RequireAuth).Get("/workspaces", s.HandleListWorkspaces)
+		r.With(s.RequireAuth).Get("/workspaces/{workspaceID}", s.HandleGetWorkspace)
 	})
 
 	return r

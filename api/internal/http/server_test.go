@@ -151,6 +151,8 @@ func TestDocsRoutes(t *testing.T) {
 		{path: "/docs", contentType: "text/html; charset=utf-8", contains: `url: "/openapi/auth.yaml"`},
 		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/auth/register:"},
 		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/auth/password/reset:"},
+		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/workspaces:"},
+		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/workspaces/{workspaceID}:"},
 	}
 
 	for _, test := range tests {

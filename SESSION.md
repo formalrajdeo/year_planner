@@ -9,12 +9,12 @@ Project: Year Planner SaaS
 
 Current Phase: Phase 2
 
-Current Task: P2-003
+Current Task: P2-006
 
 Session Status: IN PROGRESS
 
 Last Verified Task:
-P2-002
+P2-005
 
 Last Verified Commit:
 981b3afc47712843dc679a70f299c1e4ac636561 (pushed to origin/master)
@@ -36,7 +36,27 @@ P0-032 is complete: the project was pushed to `origin/master`, and GitHub Action
 - Added a multi-stage API Dockerfile with a non-root runtime user and excluded environment files from the build context.
 - Completed Phase 1 authentication hardening and password recovery; see the verification section below.
 
-## Last Work Segment
+## Last Completed Work
+
+Task ID:
+P2-003–P2-005 / workspace API, creation, and listing
+
+Completed:
+- Added authenticated `POST /api/v1/workspaces`, `GET /api/v1/workspaces`, and owner-scoped `GET /api/v1/workspaces/{workspaceID}` endpoints.
+- Workspace creation derives `ownerUserId` from the authenticated session; unknown client fields are rejected, and request bodies are size-limited.
+- Added conflict and not-found handling, CSRF-protected writes, `Location` on creation, and matching OpenAPI schemas and responses.
+- Wired the persisted MongoDB workspace repository into the production HTTP server.
+- Marked P2-003, P2-004, and P2-005 complete after verification.
+
+Verification:
+- `go test ./...`
+- `go vet ./...`
+- OpenAPI YAML parsed and workspace endpoint paths verified.
+
+Next:
+P2-006, workspace update and deletion behavior.
+
+## Earlier Work Segment
 
 Task ID:
 P2-002 / workspace repository — completed
@@ -138,7 +158,7 @@ Results:
 
 ## Next Action
 
-Continue with P2-003, the workspace API routes and OpenAPI contract.
+Continue with P2-006, workspace update and deletion behavior.
 
 ## Session Update Rules
 

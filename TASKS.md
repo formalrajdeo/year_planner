@@ -35,9 +35,9 @@ Project Status: IN PROGRESS
 
 Current Phase: Phase 2
 
-Current Task: P2-003
+Current Task: P2-006
 
-Last Verified Task: P2-002
+Last Verified Task: P2-005
 
 Last Updated: 2026-11-17
 
@@ -114,9 +114,9 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 
 - [x] P2-001 Create workspace model (typed settings object, owner, timestamps, soft-delete, schema version)
 - [x] P2-002 Create workspace repository (global unique slugs)
-- [ ] P2-003 Create workspace API
-- [ ] P2-004 Implement workspace creation
-- [ ] P2-005 Implement workspace listing
+- [x] P2-003 Create workspace API (authenticated routes and OpenAPI contract)
+- [x] P2-004 Implement workspace creation
+- [x] P2-005 Implement workspace listing
 - [ ] P2-006 Implement workspace update
 - [ ] P2-007 Implement membership model
 - [ ] P2-008 Implement membership repository
@@ -137,6 +137,8 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 P2-001 verification: `go test ./...` and `go vet ./...` passed. Tests cover constructor defaults, required-field validation, and JSON/BSON field mappings.
 
 P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness` passed. The integration test verifies owner-scoped get/list, global slug conflict including soft-deleted workspaces, and index creation. API startup now creates the workspace indexes.
+
+P2-003–P2-005 verification: `go test ./...` and `go vet ./...` passed. HTTP tests cover authenticated creation, trusted owner identity, CSRF, owner-scoped listing/retrieval, duplicate-slug conflicts, and storage failures. The OpenAPI YAML parsed successfully and documents the workspace endpoints.
 
 P0-032 verification: GitHub Actions CI run 44070384027 passed on commit `981b3afc47712843dc679a70f299c1e4ac636561`, including Go checks, frontend checks, and Docker image build.
 
@@ -313,7 +315,7 @@ Current Phase:
 Phase 2
 
 Current Task:
-P2-003
+P2-006
 
 Assigned Agent:
 Primary coding agent
@@ -322,7 +324,7 @@ Started:
 Not started
 
 Expected Outcome:
-Workspace API routes and OpenAPI contract.
+Workspace update behavior.
 
 ## 15. Completion Evidence
 
