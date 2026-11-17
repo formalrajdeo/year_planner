@@ -2,10 +2,18 @@ package http
 
 import (
 	"context"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"log/slog"
+	"math"
+	"net"
 	"net/http"
+	"net/mail"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,12 +29,21 @@ import (
 
 type userContextKey struct{}
 
+const (
+	sessionCookieName = "yearplanner_session"
+	csrfCookieName    = "yearplanner_csrf"
+)
+
 type Server struct {
-	cfg        config.Config
-	repo       users.Repository
-	session    store.SessionRepository
-	database   store.Pinger
-	sessionTTL time.Duration
+	cfg           config.Config
+	repo          users.Repository
+	session       store.SessionRepository
+	database      store.Pinger
+	loginLimiter  auth.LoginRateLimiter
+	resetTokens   auth.PasswordResetStore
+	emailQueue    auth.PasswordResetEmailQueue
+	sessionTTL    time.Duration
+	allowedOrigin map[string]struct{}
 }
 
 type RegisterRequest struct {
@@ -44,9 +61,17 @@ type ProfileUpdateRequest struct {
 	DisplayName string `json:"displayName"`
 }
 
+type PasswordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type PasswordChangeRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 type AuthResponse struct {
-	Token string     `json:"token"`
-	User  PublicUser `json:"user"`
+	User PublicUser `json:"user"`
 }
 
 type PublicUser struct {
@@ -62,26 +87,66 @@ func NewServer(cfg config.Config, repo users.Repository) *Server {
 }
 
 func NewServerWithDependencies(cfg config.Config, repo users.Repository, sessions store.SessionRepository, database store.Pinger) *Server {
+	return NewServerWithRateLimiter(cfg, repo, sessions, database, auth.NewMemoryLoginRateLimiter())
+}
+
+func NewServerWithRateLimiter(cfg config.Config, repo users.Repository, sessions store.SessionRepository, database store.Pinger, loginLimiter auth.LoginRateLimiter) *Server {
+	return NewServerWithAuthDependencies(
+		cfg,
+		repo,
+		sessions,
+		database,
+		loginLimiter,
+		auth.NewMemoryPasswordResetStore(),
+		nil,
+	)
+}
+
+func NewServerWithAuthDependencies(
+	cfg config.Config,
+	repo users.Repository,
+	sessions store.SessionRepository,
+	database store.Pinger,
+	loginLimiter auth.LoginRateLimiter,
+	resetTokens auth.PasswordResetStore,
+	emailQueue auth.PasswordResetEmailQueue,
+) *Server {
 	ttl := auth.DefaultSessionTTL()
 	if cfg.SessionTTLMinutes > 0 {
 		ttl = time.Duration(cfg.SessionTTLMinutes) * time.Minute
 	}
 
+	allowedOrigins := make(map[string]struct{}, len(cfg.AllowedOrigins)+2)
+	for _, origin := range cfg.AllowedOrigins {
+		allowedOrigins[origin] = struct{}{}
+	}
+	if cfg.AppBaseURL != "" {
+		allowedOrigins[cfg.AppBaseURL] = struct{}{}
+	}
+	if cfg.AppEnv != "production" && cfg.AppPort != "" {
+		allowedOrigins["http://localhost:"+cfg.AppPort] = struct{}{}
+		allowedOrigins["http://127.0.0.1:"+cfg.AppPort] = struct{}{}
+	}
+
 	return &Server{
-		cfg:        cfg,
-		repo:       repo,
-		session:    sessions,
-		database:   database,
-		sessionTTL: ttl,
+		cfg:           cfg,
+		repo:          repo,
+		session:       sessions,
+		database:      database,
+		loginLimiter:  loginLimiter,
+		resetTokens:   resetTokens,
+		emailQueue:    emailQueue,
+		sessionTTL:    ttl,
+		allowedOrigin: allowedOrigins,
 	}
 }
 
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(s.CSRFProtection)
 
 	r.Get("/docs", s.HandleDocs)
 	r.Get("/docs/", s.HandleDocs)
@@ -92,6 +157,8 @@ func (s *Server) Router() http.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Post("/auth/register", s.HandleRegister)
 		r.Post("/auth/login", s.HandleLogin)
+		r.Post("/auth/password/forgot", s.HandleForgotPassword)
+		r.Post("/auth/password/reset", s.HandleResetPassword)
 		r.With(s.RequireAuth).Get("/auth/me", s.HandleMe)
 		r.With(s.RequireAuth).Patch("/auth/me", s.HandleUpdateProfile)
 		r.With(s.RequireAuth).Post("/auth/logout", s.HandleLogout)
@@ -171,6 +238,11 @@ func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "email, password and displayName are required")
 		return
 	}
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email {
+		writeError(w, http.StatusBadRequest, "email is invalid")
+		return
+	}
 	if len(req.Password) < 8 {
 		writeError(w, http.StatusBadRequest, "password must be at least 8 characters long")
 		return
@@ -207,10 +279,12 @@ func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, AuthResponse{
-		Token: token,
-		User:  publicUser(user),
-	})
+	if err := s.setAuthCookies(w, token); err != nil {
+		_ = s.session.Revoke(r.Context(), token)
+		writeError(w, http.StatusInternalServerError, "unable to create session")
+		return
+	}
+	writeJSON(w, http.StatusCreated, AuthResponse{User: publicUser(user)})
 }
 
 func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -225,7 +299,19 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.repo.GetByEmail(r.Context(), strings.ToLower(strings.TrimSpace(req.Email)))
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	retryAfter, err := s.loginLimiter.Check(r.Context(), clientIP(r), email)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "authentication temporarily unavailable")
+		return
+	}
+	if retryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(math.Ceil(retryAfter.Seconds())))))
+		writeError(w, http.StatusTooManyRequests, "too many login attempts; try again later")
+		return
+	}
+
+	user, err := s.repo.GetByEmail(r.Context(), email)
 	if errors.Is(err, users.ErrNotFound) {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
@@ -246,10 +332,136 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, AuthResponse{
-		Token: token,
-		User:  publicUser(user),
+	if err := s.setAuthCookies(w, token); err != nil {
+		_ = s.session.Revoke(r.Context(), token)
+		writeError(w, http.StatusInternalServerError, "unable to create session")
+		return
+	}
+	writeJSON(w, http.StatusOK, AuthResponse{User: publicUser(user)})
+}
+
+func (s *Server) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req PasswordResetRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" {
+		writeError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+	if s.emailQueue == nil || s.resetTokens == nil {
+		writeError(w, http.StatusServiceUnavailable, "password recovery is not configured")
+		return
+	}
+	retryAfter, err := s.loginLimiter.CheckPasswordRecovery(r.Context(), clientIP(r), email)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "password recovery is temporarily unavailable")
+		return
+	}
+	if retryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(math.Ceil(retryAfter.Seconds())))))
+		writeError(w, http.StatusTooManyRequests, "too many recovery requests; try again later")
+		return
+	}
+
+	user, err := s.repo.GetByEmail(r.Context(), email)
+	if errors.Is(err, users.ErrNotFound) {
+		writePasswordResetAccepted(w)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "password recovery is temporarily unavailable")
+		return
+	}
+
+	token, err := auth.NewToken()
+	if err != nil {
+		slog.Error("password reset token generation failed", "error", err)
+		writePasswordResetAccepted(w)
+		return
+	}
+	if err := s.resetTokens.Create(r.Context(), user.ID, auth.HashToken(token), auth.PasswordResetTTL); err != nil {
+		slog.Error("password reset token storage failed", "error", err)
+		writePasswordResetAccepted(w)
+		return
+	}
+
+	resetURL, err := url.Parse(s.cfg.AppBaseURL)
+	if err != nil {
+		slog.Error("password reset URL creation failed", "error", err)
+		writePasswordResetAccepted(w)
+		return
+	}
+	resetURL.Fragment = "/reset-password?" + url.Values{"token": []string{token}}.Encode()
+	if err := s.emailQueue.Enqueue(r.Context(), user.Email, resetURL.String()); err != nil {
+		slog.Error("password reset email queueing failed", "error", err)
+	}
+	writePasswordResetAccepted(w)
+}
+
+func writePasswordResetAccepted(w http.ResponseWriter) {
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"message": "If an account exists for that email, password reset instructions will be sent.",
 	})
+}
+
+func (s *Server) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
+	if s.resetTokens == nil {
+		writeError(w, http.StatusServiceUnavailable, "password recovery is not configured")
+		return
+	}
+	var req PasswordChangeRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(req.Password) < 8 {
+		writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
+	token := strings.TrimSpace(req.Token)
+	if len(token) != 64 {
+		writeError(w, http.StatusBadRequest, "invalid or expired password reset token")
+		return
+	}
+	if _, err := hex.DecodeString(token); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid or expired password reset token")
+		return
+	}
+
+	passwordHash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "password does not meet security requirements")
+		return
+	}
+	userID, err := s.resetTokens.Consume(r.Context(), auth.HashToken(token))
+	if errors.Is(err, auth.ErrInvalidResetToken) {
+		writeError(w, http.StatusBadRequest, "invalid or expired password reset token")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to reset password")
+		return
+	}
+	if err := s.session.RevokeUser(r.Context(), userID); err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to reset password")
+		return
+	}
+	if err := s.repo.UpdatePassword(r.Context(), userID, passwordHash); err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to reset password")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated"})
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 func (s *Server) HandleMe(w http.ResponseWriter, r *http.Request) {
@@ -303,28 +515,29 @@ func (s *Server) HandleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	token, err := bearerTokenFromRequest(r)
+	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, err.Error())
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	if err := s.session.Revoke(r.Context(), token); err != nil {
+	if err := s.session.Revoke(r.Context(), cookie.Value); err != nil {
 		writeError(w, http.StatusInternalServerError, "unable to revoke session")
 		return
 	}
+	s.clearAuthCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
 func (s *Server) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, err := bearerTokenFromRequest(r)
+		cookie, err := r.Cookie(sessionCookieName)
 		if err != nil {
-			writeError(w, http.StatusUnauthorized, err.Error())
+			writeError(w, http.StatusUnauthorized, "authentication required")
 			return
 		}
 
-		userID, ok, err := s.session.Validate(r.Context(), token)
+		userID, ok, err := s.session.Validate(r.Context(), cookie.Value)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "unable to validate session")
 			return
@@ -337,6 +550,79 @@ func (s *Server) RequireAuth(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), userContextKey{}, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func (s *Server) CSRFProtection(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		origin := r.Header.Get("Origin")
+		if _, ok := s.allowedOrigin[origin]; !ok {
+			writeError(w, http.StatusForbidden, "request origin is not allowed")
+			return
+		}
+
+		if _, err := r.Cookie(sessionCookieName); err == nil {
+			csrfCookie, cookieErr := r.Cookie(csrfCookieName)
+			headerToken := r.Header.Get("X-CSRF-Token")
+			if cookieErr != nil || headerToken == "" ||
+				subtle.ConstantTimeCompare([]byte(csrfCookie.Value), []byte(headerToken)) != 1 {
+				writeError(w, http.StatusForbidden, "valid CSRF token is required")
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) setAuthCookies(w http.ResponseWriter, token string) error {
+	csrfToken, err := auth.NewToken()
+	if err != nil {
+		return err
+	}
+
+	secure := s.cfg.AppEnv != "development" && s.cfg.AppEnv != "test"
+	maxAge := int(s.sessionTTL.Seconds())
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/api/v1",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   maxAge,
+		Expires:  time.Now().Add(s.sessionTTL),
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    csrfToken,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   maxAge,
+		Expires:  time.Now().Add(s.sessionTTL),
+	})
+	return nil
+}
+
+func (s *Server) clearAuthCookies(w http.ResponseWriter) {
+	secure := s.cfg.AppEnv != "development" && s.cfg.AppEnv != "test"
+	for _, cookie := range []*http.Cookie{
+		{Name: sessionCookieName, Path: "/api/v1", HttpOnly: true},
+		{Name: csrfCookieName, Path: "/", HttpOnly: false},
+	} {
+		cookie.Value = ""
+		cookie.Secure = secure
+		cookie.SameSite = http.SameSiteStrictMode
+		cookie.MaxAge = -1
+		cookie.Expires = time.Unix(1, 0)
+		http.SetCookie(w, cookie)
+	}
 }
 
 func UserIDFromContext(ctx context.Context) (string, bool) {
@@ -375,16 +661,4 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
-}
-
-func bearerTokenFromRequest(r *http.Request) (string, error) {
-	authorization := r.Header.Get("Authorization")
-	if authorization == "" {
-		return "", errors.New("missing Authorization header")
-	}
-	parts := strings.SplitN(authorization, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
-		return "", errors.New("authorization header must be 'Bearer <token>'")
-	}
-	return strings.TrimSpace(parts[1]), nil
 }

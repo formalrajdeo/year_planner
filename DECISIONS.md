@@ -295,6 +295,37 @@ Consequences:
 - Preserve the user's subsequently supplied UI.
 - Use the screenshot to validate layout hierarchy.
 
+## ADR-017 — Workspace Slug Uniqueness
+
+Status: ACCEPTED
+
+Decision:
+Workspace slugs are globally unique across all workspace records. Soft-deleted
+workspaces continue reserving their slugs.
+
+Reason:
+A workspace identifier must not be reassigned to a different tenant after
+deletion, preventing old identifiers from resolving to another workspace.
+
+Consequences:
+- Enforce uniqueness with a MongoDB unique index.
+- Workspace reads remain scoped by both workspace ID and trusted owner or
+  membership authorization.
+
+Affected files:
+- `ARCHITECTURE.md`
+- `api/internal/workspaces/`
+
+Related task IDs:
+- P2-002
+
+Migration impact:
+Existing duplicate slugs must be resolved before the unique index can be
+created.
+
+Approved by:
+Project owner (global uniqueness)
+
 ---
 
 ## New Decision Template

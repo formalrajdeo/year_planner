@@ -28,6 +28,7 @@ type Repository interface {
 	GetByEmail(ctx context.Context, email string) (User, error)
 	GetByID(ctx context.Context, userID string) (User, error)
 	UpdateProfile(ctx context.Context, userID string, displayName string) (User, error)
+	UpdatePassword(ctx context.Context, userID string, passwordHash string) error
 }
 
 type MemoryRepository struct {
@@ -101,6 +102,23 @@ func (r *MemoryRepository) UpdateProfile(_ context.Context, userID string, displ
 	user.UpdatedAt = time.Now()
 	r.users[userID] = user
 	return user, nil
+}
+
+func (r *MemoryRepository) UpdatePassword(_ context.Context, userID string, passwordHash string) error {
+	if passwordHash == "" {
+		return errors.New("password hash cannot be empty")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	user, ok := r.users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	user.PasswordHash = passwordHash
+	user.UpdatedAt = time.Now()
+	r.users[userID] = user
+	return nil
 }
 
 func NextUserID() string {

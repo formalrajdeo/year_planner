@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthPage, type AuthMode } from "./features/auth/AuthPage";
 import { PlannerHome } from "./features/year-board/PlannerHome";
@@ -8,32 +8,26 @@ import {
   login,
   logout,
   register,
+  requestPasswordReset,
+  resetPassword,
   type AuthCredentials,
-  type AuthSession,
 } from "./lib/api";
+
+const initialPasswordResetToken = readPasswordResetToken();
 
 export default function App() {
   const queryClient = useQueryClient();
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const [authError, setAuthError] = useState("");
   const [logoutError, setLogoutError] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [passwordResetToken, setPasswordResetToken] = useState(initialPasswordResetToken);
 
   const profileQuery = useQuery({
-    queryKey: ["auth", "me", session?.token],
-    queryFn: () => getCurrentUser(session!.token),
-    enabled: Boolean(session?.token),
+    queryKey: ["auth", "me"],
+    queryFn: getCurrentUser,
     retry: false,
   });
-  const sessionExpired = isUnauthorized(profileQuery.error);
-
-  useEffect(() => {
-    if (sessionExpired) {
-      void queryClient.removeQueries({
-        queryKey: ["auth", "me", session?.token],
-      });
-    }
-  }, [queryClient, session?.token, sessionExpired]);
 
   async function handleAuth(mode: AuthMode, credentials: AuthCredentials) {
     setAuthError("");
@@ -42,24 +36,23 @@ export default function App() {
         mode === "register"
           ? await register(credentials)
           : await login(credentials);
-      setSession(nextSession);
-      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      setSignedOut(false);
+      queryClient.setQueryData(["auth", "me"], nextSession.user);
     } catch (error) {
       setAuthError(errorMessage(error));
     }
   }
 
   async function handleLogout() {
-    if (!session) return;
     setLogoutError("");
     setIsSigningOut(true);
     try {
-      await logout(session.token);
-      setSession(null);
+      await logout();
+      setSignedOut(true);
       await queryClient.removeQueries({ queryKey: ["auth", "me"] });
     } catch (error) {
       if (isUnauthorized(error)) {
-        setSession(null);
+        setSignedOut(true);
         await queryClient.removeQueries({ queryKey: ["auth", "me"] });
       } else {
         setLogoutError(errorMessage(error));
@@ -69,20 +62,49 @@ export default function App() {
     }
   }
 
-  if (!session || sessionExpired) {
-    return <AuthPage onSubmit={handleAuth} error={authError} />;
+  if (!passwordResetToken && !signedOut && profileQuery.isLoading) {
+    return <div className="app-loading">Opening your planning space…</div>;
   }
 
+  if (!passwordResetToken && !signedOut && profileQuery.data && !isUnauthorized(profileQuery.error)) {
+    return (
+      <PlannerHome
+        user={profileQuery.data}
+        profileLoading={profileQuery.isFetching}
+        profileError={profileQuery.isError && !isUnauthorized(profileQuery.error)}
+        logoutError={logoutError}
+        isSigningOut={isSigningOut}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  const formError = authError || (
+    profileQuery.error && !isUnauthorized(profileQuery.error)
+      ? errorMessage(profileQuery.error)
+      : ""
+  );
   return (
-    <PlannerHome
-      user={profileQuery.data ?? session.user}
-      profileLoading={profileQuery.isLoading}
-      profileError={profileQuery.isError && !isUnauthorized(profileQuery.error)}
-      logoutError={logoutError}
-      isSigningOut={isSigningOut}
-      onLogout={handleLogout}
+    <AuthPage
+      onSubmit={handleAuth}
+      onRequestPasswordReset={requestPasswordReset}
+      onResetPassword={async (token, password) => {
+        await resetPassword(token, password);
+        window.history.replaceState({}, "", window.location.pathname + window.location.search);
+        setPasswordResetToken(null);
+      }}
+      passwordResetToken={passwordResetToken}
+      error={formError}
     />
   );
+}
+
+function readPasswordResetToken() {
+  const fragment = window.location.hash;
+  if (!fragment.startsWith("#/reset-password?")) {
+    return null;
+  }
+  return new URLSearchParams(fragment.slice(fragment.indexOf("?") + 1)).get("token");
 }
 
 function isUnauthorized(error: unknown) {

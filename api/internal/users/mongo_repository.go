@@ -72,3 +72,25 @@ func (r *MongoRepository) UpdateProfile(ctx context.Context, userID string, disp
 	}
 	return user, err
 }
+
+func (r *MongoRepository) UpdatePassword(ctx context.Context, userID string, passwordHash string) error {
+	if passwordHash == "" {
+		return errors.New("password hash cannot be empty")
+	}
+
+	result, err := r.collection.UpdateOne(
+		ctx,
+		bson.D{{Key: "_id", Value: userID}},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "passwordHash", Value: passwordHash},
+			{Key: "updatedAt", Value: time.Now().UTC()},
+		}}},
+	)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

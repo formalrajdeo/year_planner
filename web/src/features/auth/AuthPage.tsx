@@ -20,27 +20,63 @@ const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 export function AuthPage({
   onSubmit,
+  onRequestPasswordReset,
+  onResetPassword,
+  passwordResetToken,
   error,
 }: {
   onSubmit: (mode: AuthMode, credentials: AuthCredentials) => Promise<void>;
+  onRequestPasswordReset: (email: string) => Promise<{ message: string }>;
+  onResetPassword: (token: string, password: string) => Promise<void>;
+  passwordResetToken?: string | null;
   error: string;
 }) {
   const [mode, setMode] = useState<AuthMode>("login");
+  const [recoveryMode, setRecoveryMode] = useState<"none" | "request" | "reset">(
+    passwordResetToken ? "reset" : "none",
+  );
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [recoveryError, setRecoveryError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
+    setRecoveryError("");
     try {
+      if (recoveryMode === "request") {
+        const response = await onRequestPasswordReset(email.trim());
+        setRecoveryMessage(response.message);
+        return;
+      }
+      if (recoveryMode === "reset") {
+        if (password !== confirmPassword) {
+          setRecoveryError("Passwords do not match.");
+          return;
+        }
+        await onResetPassword(passwordResetToken ?? "", password);
+        setRecoveryMode("none");
+        setRecoveryMessage("Your password has been updated. Sign in with your new password.");
+        setPassword("");
+        setConfirmPassword("");
+        return;
+      }
       await onSubmit(mode, {
         email: email.trim(),
         password,
         ...(mode === "register" ? { displayName: displayName.trim() } : {}),
       });
+    } catch (submitError) {
+      setRecoveryError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Something went wrong. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -103,39 +139,53 @@ export function AuthPage({
           <div className="auth-heading">
             <p className="eyebrow eyebrow-green">
               <span className="eyebrow-dot" />
-              A fresh page awaits
+              {recoveryMode === "reset" ? "A new start" : "A fresh page awaits"}
             </p>
-            <h2>{mode === "login" ? "Welcome back" : "Start with a year"}</h2>
+            <h2>
+              {recoveryMode === "request"
+                ? "Reset your password"
+                : recoveryMode === "reset"
+                  ? "Choose a new password"
+                  : mode === "login"
+                    ? "Welcome back"
+                    : "Start with a year"}
+            </h2>
             <p>
-              {mode === "login"
-                ? "Sign in to pick up where you left off."
-                : "Create your account and make space for what matters."}
+              {recoveryMode === "request"
+                ? "Enter your email and we’ll send reset instructions if an account exists."
+                : recoveryMode === "reset"
+                  ? "Choose a new password for your Year Planner account."
+                  : mode === "login"
+                    ? "Sign in to pick up where you left off."
+                    : "Create your account and make space for what matters."}
             </p>
           </div>
 
-          <div className="auth-tabs" role="tablist" aria-label="Account options">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "login"}
-              className={mode === "login" ? "auth-tab active" : "auth-tab"}
-              onClick={() => setMode("login")}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "register"}
-              className={mode === "register" ? "auth-tab active" : "auth-tab"}
-              onClick={() => setMode("register")}
-            >
-              Create account
-            </button>
-          </div>
+          {recoveryMode === "none" && (
+            <div className="auth-tabs" role="tablist" aria-label="Account options">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "login"}
+                className={mode === "login" ? "auth-tab active" : "auth-tab"}
+                onClick={() => setMode("login")}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "register"}
+                className={mode === "register" ? "auth-tab active" : "auth-tab"}
+                onClick={() => setMode("register")}
+              >
+                Create account
+              </button>
+            </div>
+          )}
 
           <form className="auth-form" onSubmit={submit}>
-            {mode === "register" && (
+            {mode === "register" && recoveryMode === "none" && (
               <label className="field">
                 <span>Your name</span>
                 <div className="input-shell">
@@ -152,60 +202,101 @@ export function AuthPage({
               </label>
             )}
 
-            <label className="field">
-              <span>Email address</span>
-              <div className="input-shell">
-                <Mail size={17} aria-hidden="true" />
-                <input
-                  autoComplete="email"
-                  name="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-            </label>
+            {recoveryMode !== "reset" && (
+              <label className="field">
+                <span>Email address</span>
+                <div className="input-shell">
+                  <Mail size={17} aria-hidden="true" />
+                  <input
+                    autoComplete="email"
+                    name="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+              </label>
+            )}
 
-            <label className="field">
-              <span>Password</span>
-              <div className="input-shell">
-                <LockKeyhole size={17} aria-hidden="true" />
-                <input
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  minLength={8}
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="At least 8 characters"
-                  required
-                />
-                <button
-                  className="password-toggle"
-                  type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((visible) => !visible)}
-                >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
-            </label>
+            {recoveryMode !== "request" && (
+              <label className="field">
+                <span>{recoveryMode === "reset" ? "New password" : "Password"}</span>
+                <div className="input-shell">
+                  <LockKeyhole size={17} aria-hidden="true" />
+                  <input
+                    autoComplete={
+                      mode === "login" && recoveryMode === "none"
+                        ? "current-password"
+                        : "new-password"
+                    }
+                    minLength={8}
+                    name={recoveryMode === "reset" ? "newPassword" : "password"}
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="At least 8 characters"
+                    required
+                  />
+                  <button
+                    className="password-toggle"
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </label>
+            )}
 
-            {mode === "login" && (
+            {recoveryMode === "reset" && (
+              <label className="field">
+                <span>Confirm new password</span>
+                <div className="input-shell">
+                  <LockKeyhole size={17} aria-hidden="true" />
+                  <input
+                    autoComplete="new-password"
+                    minLength={8}
+                    name="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    placeholder="Enter your new password again"
+                    required
+                  />
+                </div>
+              </label>
+            )}
+
+            {mode === "login" && recoveryMode === "none" && (
               <div className="form-meta">
                 <span className="session-note">Your sign-in stays active for this session.</span>
-                <span className="forgot-link" aria-disabled="true">
-                  Recovery coming soon
-                </span>
+                <button
+                  className="forgot-link"
+                  type="button"
+                  onClick={() => {
+                    setRecoveryMode("request");
+                    setRecoveryMessage("");
+                    setRecoveryError("");
+                  }}
+                >
+                  Forgot password?
+                </button>
               </div>
             )}
 
-            {error && (
+            {(recoveryMode === "none" ? error : recoveryError) && (
               <div className="form-error" role="alert">
                 <X size={16} />
-                <span>{error}</span>
+                <span>{recoveryMode === "none" ? error : recoveryError}</span>
+              </div>
+            )}
+
+            {recoveryMessage && (
+              <div className="form-success" role="status">
+                {recoveryMessage}
               </div>
             )}
 
@@ -213,12 +304,29 @@ export function AuthPage({
               <span>
                 {isSubmitting
                   ? "One moment..."
-                  : mode === "login"
-                    ? "Sign in to your planner"
-                    : "Create your account"}
+                  : recoveryMode === "request"
+                    ? "Send reset instructions"
+                    : recoveryMode === "reset"
+                      ? "Update password"
+                      : mode === "login"
+                        ? "Sign in to your planner"
+                        : "Create your account"}
               </span>
               <ArrowRight size={17} />
             </button>
+            {recoveryMode !== "none" && (
+              <button
+                className="forgot-link recovery-back"
+                type="button"
+                onClick={() => {
+                  setRecoveryMode("none");
+                  setRecoveryMessage("");
+                  setRecoveryError("");
+                }}
+              >
+                Back to sign in
+              </button>
+            )}
           </form>
 
           <div className="security-note">

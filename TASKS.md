@@ -33,11 +33,11 @@ Never repeat completed work without documenting why.
 
 Project Status: IN PROGRESS
 
-Current Phase: Phase 0
+Current Phase: Phase 2
 
-Current Task: P0-032
+Current Task: P2-003
 
-Last Verified Task: P0-031
+Last Verified Task: P2-002
 
 Last Updated: 2026-11-17
 
@@ -102,16 +102,18 @@ Last Updated: 2026-11-17
 - [x] P1-011 Implement authentication middleware
 - [x] P1-012 Implement profile endpoint
 - [x] P1-013 Implement profile update
-- [ ] P1-014 Implement password recovery
-- [ ] P1-015 Implement login rate limiting
-- [ ] P1-016 Implement CSRF protection
+- [x] P1-014 Implement password recovery (hashed one-time tokens, expiry, SMTP delivery via encrypted MongoDB outbox, session revocation, and UI flow)
+- [x] P1-015 Implement MongoDB-backed login rate limiting (15-minute per-IP and per-IP/email limits; untrusted forwarding headers ignored)
+- [x] P1-016 Implement CSRF protection (origin allowlist and session-bound double-submit token)
 - [x] P1-017 Add authentication integration tests
-- [ ] P1-018 Verify authentication phase
+- [x] P1-018 Verify authentication phase
+
+Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, frontend lint/typecheck/tests/build, and Docker image build passed. Tests cover one-time/expired reset tokens, session revocation, generic recovery responses, encrypted mail payloads, SMTP delivery, rate-limit thresholds, `Retry-After`, CSRF enforcement, and forged `X-Forwarded-For`. Local MongoDB startup/readiness passed with recovery disabled and with SMTP/outbox configured. The reset email provider still needs production environment values before deployment.
 
 ## 5. Phase 2 — Multi-Tenancy
 
-- [ ] P2-001 Create workspace model
-- [ ] P2-002 Create workspace repository
+- [x] P2-001 Create workspace model (typed settings object, owner, timestamps, soft-delete, schema version)
+- [x] P2-002 Create workspace repository (global unique slugs)
 - [ ] P2-003 Create workspace API
 - [ ] P2-004 Implement workspace creation
 - [ ] P2-005 Implement workspace listing
@@ -131,6 +133,10 @@ Last Updated: 2026-11-17
 - [ ] P2-019 Add personal data isolation tests
 - [ ] P2-020 Add workspace isolation tests
 - [ ] P2-021 Verify multi-tenancy phase
+
+P2-001 verification: `go test ./...` and `go vet ./...` passed. Tests cover constructor defaults, required-field validation, and JSON/BSON field mappings.
+
+P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness` passed. The integration test verifies owner-scoped get/list, global slug conflict including soft-deleted workspaces, and index creation. API startup now creates the workspace indexes.
 
 ## 6. Phase 3 — RBAC
 
@@ -302,10 +308,10 @@ Last Updated: 2026-11-17
 ## 14. Active Work Session
 
 Current Phase:
-Phase 0
+Phase 2
 
 Current Task:
-P0-001
+P2-003
 
 Assigned Agent:
 Primary coding agent
@@ -314,7 +320,7 @@ Started:
 Not started
 
 Expected Outcome:
-Repository inspection report.
+Workspace API routes and OpenAPI contract.
 
 ## 15. Completion Evidence
 
@@ -332,7 +338,7 @@ A checked box without evidence is not accepted.
 
 ## 16. Blockers
 
-No blockers recorded.
+P0-032 remains blocked until this workspace is initialized and pushed to a Git remote; this does not block Phase 2 implementation.
 
 When a task is blocked, record:
 

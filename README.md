@@ -99,6 +99,13 @@ reserved URI characters. `MONGODB_DATABASE` selects the app database.
 
 Never commit `.env` or use the MongoDB root account in production.
 Create a dedicated database user with only the permissions the app needs.
+Password recovery requires `SMTP_HOST`, `SMTP_PORT`, and `SMTP_FROM`;
+SMTP credentials are optional only for unauthenticated local relays.
+Without SMTP configured, recovery endpoints return an explicit unavailable
+response. Production requires HTTPS for `APP_BASE_URL` and TLS-capable SMTP
+(implicit TLS on port 465 or STARTTLS). Reset emails are stored in an encrypted
+MongoDB outbox and retried; keep `SESSION_SECRET` stable while queued emails
+may still be pending. Production session secrets must be at least 32 bytes.
 
 Start backend:
 
@@ -193,10 +200,10 @@ New developers and AI agents must read:
 ## 8. Project Progress
 
 Current phase:
-Phase 0 — Foundation
+Phase 1 — Authentication
 
 Current implementation status:
-In progress.
+In progress; see `TASKS.md` for verified work and remaining phases.
 
 The authoritative task status is TASKS.md.
 

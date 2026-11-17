@@ -7,8 +7,11 @@ export interface PublicUser {
 }
 
 export interface AuthSession {
-  token: string;
   user: PublicUser;
+}
+
+export interface PasswordRecoveryResponse {
+  message: string;
 }
 
 interface ApiError {
@@ -38,6 +41,7 @@ async function request<T>(
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
+    credentials: "include",
     headers,
   });
 
@@ -58,6 +62,15 @@ async function request<T>(
   return (await response.json()) as T;
 }
 
+function csrfHeaders(): HeadersInit {
+  const csrf = document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith("yearplanner_csrf="))
+    ?.slice("yearplanner_csrf=".length);
+
+  return csrf ? { "X-CSRF-Token": decodeURIComponent(csrf) } : {};
+}
+
 export interface AuthCredentials {
   email: string;
   password: string;
@@ -67,6 +80,7 @@ export interface AuthCredentials {
 export function register(credentials: AuthCredentials): Promise<AuthSession> {
   return request<AuthSession>("/auth/register", {
     method: "POST",
+    headers: csrfHeaders(),
     body: JSON.stringify(credentials),
   });
 }
@@ -74,6 +88,7 @@ export function register(credentials: AuthCredentials): Promise<AuthSession> {
 export function login(credentials: AuthCredentials): Promise<AuthSession> {
   return request<AuthSession>("/auth/login", {
     method: "POST",
+    headers: csrfHeaders(),
     body: JSON.stringify({
       email: credentials.email,
       password: credentials.password,
@@ -81,15 +96,32 @@ export function login(credentials: AuthCredentials): Promise<AuthSession> {
   });
 }
 
-export function getCurrentUser(token: string): Promise<PublicUser> {
-  return request<PublicUser>("/auth/me", {
-    headers: { Authorization: `Bearer ${token}` },
+export function requestPasswordReset(email: string): Promise<PasswordRecoveryResponse> {
+  return request<PasswordRecoveryResponse>("/auth/password/forgot", {
+    method: "POST",
+    headers: csrfHeaders(),
+    body: JSON.stringify({ email }),
   });
 }
 
-export function logout(token: string): Promise<{ message: string }> {
+export function resetPassword(
+  token: string,
+  password: string,
+): Promise<PasswordRecoveryResponse> {
+  return request<PasswordRecoveryResponse>("/auth/password/reset", {
+    method: "POST",
+    headers: csrfHeaders(),
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+export function getCurrentUser(): Promise<PublicUser> {
+  return request<PublicUser>("/auth/me");
+}
+
+export function logout(): Promise<{ message: string }> {
   return request<{ message: string }>("/auth/logout", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: csrfHeaders(),
   });
 }

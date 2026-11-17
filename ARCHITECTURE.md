@@ -299,13 +299,21 @@ Fields:
 - slug
 - ownerUserId
 - settings
+- schemaVersion
 - createdAt
 - updatedAt
 - deletedAt
 
 Indexes:
-- Unique slug according to product rules.
-- ownerUserId.
+- Globally unique slug, including soft-deleted workspaces.
+- ownerUserId + deletedAt + createdAt + _id for owner-scoped listing.
+
+Soft-deleting a workspace does not release its slug, so a prior workspace
+identifier can never be reassigned to a different tenant.
+
+`settings` is a typed object with no fields until workspace-level setting
+keys are approved in product scope. Do not accept arbitrary client-supplied
+settings maps.
 
 ### memberships
 

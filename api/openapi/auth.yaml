@@ -8,6 +8,12 @@ paths:
   /api/v1/auth/register:
     post:
       summary: Register a new user
+      parameters:
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -27,9 +33,23 @@ paths:
       responses:
         '201':
           description: User created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly session cookie and readable CSRF cookie
+        '403':
+          description: Request origin is not allowed
+      security: []
   /api/v1/auth/login:
     post:
       summary: Log in as a user
+      parameters:
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -46,18 +66,108 @@ paths:
       responses:
         '200':
           description: Successful login
+        '403':
+          description: Request origin is not allowed
+        '429':
+          description: Login rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds until another attempt may be made
+        '503':
+          description: Authentication temporarily unavailable
+      security: []
+  /api/v1/auth/password/forgot:
+    post:
+      summary: Request password reset instructions
+      parameters:
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '202':
+          description: Request accepted; response does not disclose whether the account exists
+        '403':
+          description: Request origin is not allowed
+        '429':
+          description: Recovery rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+        '503':
+          description: Password recovery is unavailable or not configured
+      security: []
+  /api/v1/auth/password/reset:
+    post:
+      summary: Set a new password with a one-time reset token
+      parameters:
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                  description: One-time token sent in the URL fragment; expires after one hour
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed and all existing sessions revoked
+        '400':
+          description: Invalid or expired token, or invalid password
+        '403':
+          description: Request origin is not allowed
+        '503':
+          description: Password recovery is not configured
+      security: []
   /api/v1/auth/me:
     get:
       summary: Fetch the current authenticated user
       security:
-        - bearerAuth: []
+        - sessionCookie: []
       responses:
         '200':
           description: Current user profile
     patch:
       summary: Update the current user's display name
       security:
-        - bearerAuth: []
+        - sessionCookie: []
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -73,17 +183,32 @@ paths:
           description: Updated user profile
         '401':
           description: Missing, invalid, or expired session
+        '403':
+          description: Invalid CSRF token or request origin
   /api/v1/auth/logout:
     post:
       summary: Revoke the current session token
       security:
-        - bearerAuth: []
+        - sessionCookie: []
+      parameters:
+        - in: header
+          name: X-CSRF-Token
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Logged out
+        '403':
+          description: Invalid CSRF token or request origin
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: opaque
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: yearplanner_session

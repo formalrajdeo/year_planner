@@ -11,10 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"yearplanner/internal/auth"
 	"yearplanner/internal/config"
 	httpapi "yearplanner/internal/http"
 	"yearplanner/internal/store"
 	"yearplanner/internal/users"
+	"yearplanner/internal/workspaces"
 
 	"github.com/joho/godotenv"
 )
@@ -52,17 +54,58 @@ func run() error {
 	}()
 
 	userRepository := users.NewMongoRepository(database.Collection("users"))
+	workspaceRepository := workspaces.NewMongoRepository(database.Collection("workspaces"))
 	sessionRepository := store.NewMongoSessionStore(database.Collection("sessions"))
+	loginLimiter := store.NewMongoLoginRateLimiter(database.Collection("auth_rate_limits"), cfg.SessionSecret)
+	resetTokenStore := store.NewMongoPasswordResetStore(database.Collection("password_reset_tokens"))
 	indexCtx, cancelIndexes := context.WithTimeout(context.Background(), cfg.MongoTimeout)
 	defer cancelIndexes()
 	if err := userRepository.EnsureIndexes(indexCtx); err != nil {
 		return fmt.Errorf("create user indexes: %w", err)
 	}
+	if err := workspaceRepository.EnsureIndexes(indexCtx); err != nil {
+		return fmt.Errorf("create workspace indexes: %w", err)
+	}
 	if err := sessionRepository.EnsureIndexes(indexCtx); err != nil {
 		return fmt.Errorf("create session indexes: %w", err)
 	}
+	if err := loginLimiter.EnsureIndexes(indexCtx); err != nil {
+		return fmt.Errorf("create auth rate limit indexes: %w", err)
+	}
+	if err := resetTokenStore.EnsureIndexes(indexCtx); err != nil {
+		return fmt.Errorf("create password reset indexes: %w", err)
+	}
 
-	server := httpapi.NewServerWithDependencies(cfg, userRepository, sessionRepository, database)
+	var emailSender auth.PasswordResetEmailSender
+	var mongoEmailQueue *store.MongoPasswordResetEmailQueue
+	var emailQueue auth.PasswordResetEmailQueue
+	if cfg.SMTPHost != "" {
+		emailSender = auth.NewSMTPEmailSender(auth.SMTPConfig{
+			Host:       cfg.SMTPHost,
+			Port:       cfg.SMTPPort,
+			Username:   cfg.SMTPUsername,
+			Password:   cfg.SMTPPassword,
+			From:       cfg.SMTPFrom,
+			RequireTLS: cfg.AppEnv == "production",
+		})
+		mongoEmailQueue = store.NewMongoPasswordResetEmailQueue(
+			database.Collection("password_reset_email_queue"),
+			cfg.SessionSecret,
+		)
+		if err := mongoEmailQueue.EnsureIndexes(indexCtx); err != nil {
+			return fmt.Errorf("create password reset email queue indexes: %w", err)
+		}
+		emailQueue = mongoEmailQueue
+	}
+	server := httpapi.NewServerWithAuthDependencies(
+		cfg,
+		userRepository,
+		sessionRepository,
+		database,
+		loginLimiter,
+		resetTokenStore,
+		emailQueue,
+	)
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.AppPort),
 		Handler:           server.Router(),
@@ -77,6 +120,16 @@ func run() error {
 	defer signal.Stop(stop)
 
 	serverErrors := make(chan error, 1)
+	var emailWorkerDone chan struct{}
+	workerCtx, cancelEmailWorker := context.WithCancel(context.Background())
+	defer cancelEmailWorker()
+	if mongoEmailQueue != nil {
+		emailWorkerDone = make(chan struct{})
+		go func() {
+			defer close(emailWorkerDone)
+			mongoEmailQueue.Run(workerCtx, emailSender)
+		}()
+	}
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErrors <- err
@@ -88,13 +141,22 @@ func run() error {
 	select {
 	case <-stop:
 	case err := <-serverErrors:
+		cancelEmailWorker()
 		return fmt.Errorf("HTTP server failed: %w", err)
 	}
 
+	cancelEmailWorker()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("graceful HTTP shutdown failed: %w", err)
+	}
+	if emailWorkerDone != nil {
+		select {
+		case <-emailWorkerDone:
+		case <-ctx.Done():
+			return fmt.Errorf("password reset email worker shutdown timed out")
+		}
 	}
 	return nil
 }
