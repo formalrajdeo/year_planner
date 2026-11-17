@@ -52,6 +52,7 @@ func TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	workspace.UpdatedAt = time.Now().Add(-time.Hour).UTC()
 	if err := repository.Create(ctx, workspace); err != nil {
 		t.Fatalf("create workspace: %v", err)
 	}
@@ -85,6 +86,23 @@ func TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness(t *testing.T) {
 		t.Fatalf("duplicate global slug error = %v, want %v", err, ErrSlugExists)
 	}
 
+	renamed, err := repository.UpdateNameForOwner(ctx, workspace.ID, "owner-one", "  Renamed Team  ")
+	if err != nil {
+		t.Fatalf("rename workspace: %v", err)
+	}
+	if renamed.Name != "Renamed Team" || renamed.Slug != workspace.Slug || renamed.OwnerUserID != workspace.OwnerUserID {
+		t.Fatalf("rename changed unexpected workspace fields: %#v", renamed)
+	}
+	if !renamed.UpdatedAt.After(workspace.UpdatedAt) {
+		t.Fatalf("renamed UpdatedAt = %s, want after %s", renamed.UpdatedAt, workspace.UpdatedAt)
+	}
+	if _, err := repository.UpdateNameForOwner(ctx, workspace.ID, "owner-two", "Unauthorized"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-owner rename error = %v, want %v", err, ErrNotFound)
+	}
+	if _, err := repository.UpdateNameForOwner(ctx, workspace.ID, "owner-one", "  "); !errors.Is(err, ErrInvalidWorkspace) {
+		t.Fatalf("empty rename error = %v, want %v", err, ErrInvalidWorkspace)
+	}
+
 	deletedAt := time.Now().UTC()
 	if _, err := collection.UpdateOne(ctx, bson.D{{Key: "_id", Value: workspace.ID}}, bson.D{
 		{Key: "$set", Value: bson.D{{Key: "deletedAt", Value: deletedAt}}},
@@ -93,6 +111,9 @@ func TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness(t *testing.T) {
 	}
 	if _, err := repository.GetByIDForOwner(ctx, workspace.ID, "owner-one"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("get soft-deleted workspace error = %v, want %v", err, ErrNotFound)
+	}
+	if _, err := repository.UpdateNameForOwner(ctx, workspace.ID, "owner-one", "After deletion"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rename soft-deleted workspace error = %v, want %v", err, ErrNotFound)
 	}
 	if err := repository.Create(ctx, duplicateSlug); !errors.Is(err, ErrSlugExists) {
 		t.Fatalf("reused soft-deleted slug error = %v, want %v", err, ErrSlugExists)

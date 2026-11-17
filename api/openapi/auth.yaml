@@ -293,6 +293,47 @@ paths:
           description: Workspace could not be loaded
         '503':
           description: Workspace service unavailable
+    patch:
+      summary: Rename a workspace owned by the authenticated user
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: workspaceID
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/origin'
+        - $ref: '#/components/parameters/csrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceRequest'
+      responses:
+        '200':
+          description: Workspace renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          description: Invalid workspace update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid session
+        '403':
+          description: Invalid CSRF token or request origin
+        '404':
+          description: Workspace not found
+        '500':
+          description: Workspace could not be updated
+        '503':
+          description: Workspace service unavailable
 components:
   parameters:
     origin:
@@ -317,6 +358,14 @@ components:
           type: string
           minLength: 1
         slug:
+          type: string
+          minLength: 1
+    UpdateWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
           type: string
           minLength: 1
     Workspace:

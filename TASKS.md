@@ -35,9 +35,9 @@ Project Status: IN PROGRESS
 
 Current Phase: Phase 2
 
-Current Task: P2-006
+Current Task: P2-007
 
-Last Verified Task: P2-005
+Last Verified Task: P2-006
 
 Last Updated: 2026-11-17
 
@@ -117,7 +117,7 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 - [x] P2-003 Create workspace API (authenticated routes and OpenAPI contract)
 - [x] P2-004 Implement workspace creation
 - [x] P2-005 Implement workspace listing
-- [ ] P2-006 Implement workspace update
+- [x] P2-006 Implement workspace update (owner-scoped rename)
 - [ ] P2-007 Implement membership model
 - [ ] P2-008 Implement membership repository
 - [ ] P2-009 Implement membership listing
@@ -139,6 +139,8 @@ P2-001 verification: `go test ./...` and `go vet ./...` passed. Tests cover cons
 P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness` passed. The integration test verifies owner-scoped get/list, global slug conflict including soft-deleted workspaces, and index creation. API startup now creates the workspace indexes.
 
 P2-003–P2-005 verification: `go test ./...` and `go vet ./...` passed. HTTP tests cover authenticated creation, trusted owner identity, CSRF, owner-scoped listing/retrieval, duplicate-slug conflicts, and storage failures. The OpenAPI YAML parsed successfully and documents the workspace endpoints. GitHub Actions CI run 44072914892 passed on commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`.
+
+P2-006 verification: `go test ./...` and `go vet ./...` passed. HTTP and MongoDB integration tests cover owner-only rename, not-found for cross-owner/deleted workspaces, unchanged slug and owner, updated timestamps, invalid names, and storage errors. OpenAPI YAML validation confirms the PATCH request accepts only `name`.
 
 P0-032 verification: GitHub Actions CI run 44070384027 passed on commit `981b3afc47712843dc679a70f299c1e4ac636561`, including Go checks, frontend checks, and Docker image build.
 
@@ -315,7 +317,7 @@ Current Phase:
 Phase 2
 
 Current Task:
-P2-006
+P2-007
 
 Assigned Agent:
 Primary coding agent
@@ -324,7 +326,7 @@ Started:
 Not started
 
 Expected Outcome:
-Workspace update behavior.
+Membership domain model.
 
 ## 15. Completion Evidence
 

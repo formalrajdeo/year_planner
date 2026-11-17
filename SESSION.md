@@ -9,19 +9,19 @@ Project: Year Planner SaaS
 
 Current Phase: Phase 2
 
-Current Task: P2-006
+Current Task: P2-007
 
 Session Status: IN PROGRESS
 
 Last Verified Task:
-P2-005
+P2-006
 
 Last Verified Commit:
 0d9816fa1194e32280cd105858ec8a4d89b351c1 (pushed to origin/master)
 
 P0-032 is complete: the project was pushed to `origin/master`, and GitHub Actions CI passed.
 
-## Last Completed Work
+## Completed Project Milestones
 
 - Pushed commit `981b3afc47712843dc679a70f299c1e4ac636561` to `origin/master`; GitHub Actions run 44070384027 passed Go checks, frontend checks, and Docker image build.
 - Pushed workspace API commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`; GitHub Actions run 44072914892 passed all checks.
@@ -37,7 +37,7 @@ P0-032 is complete: the project was pushed to `origin/master`, and GitHub Action
 - Added a multi-stage API Dockerfile with a non-root runtime user and excluded environment files from the build context.
 - Completed Phase 1 authentication hardening and password recovery; see the verification section below.
 
-## Last Completed Work
+## Previous Work Segment
 
 Task ID:
 P2-003–P2-005 / workspace API, creation, and listing
@@ -57,6 +57,25 @@ Verification:
 
 Next:
 P2-006, workspace update and deletion behavior.
+
+## Last Completed Work Segment
+
+Task ID:
+P2-006 / workspace update
+
+Completed:
+- Added owner-scoped MongoDB rename using `FindOneAndUpdate`, excluding soft-deleted workspaces and updating `updatedAt`.
+- Added authenticated, CSRF-protected `PATCH /api/v1/workspaces/{workspaceID}`; the body accepts only `name`, leaving owner, slug, and the still-undefined settings immutable.
+- Documented the PATCH contract and its current rename-only behavior.
+
+Verification:
+- `go test ./...`
+- `go vet ./...`
+- MongoDB-backed repository integration test passed for rename, owner isolation, invalid names, and soft-deleted workspaces.
+- OpenAPI YAML schema and PATCH request shape validated.
+
+Next:
+P2-007, membership domain model.
 
 ## Earlier Work Segment
 
@@ -160,7 +179,7 @@ Results:
 
 ## Next Action
 
-Continue with P2-006, workspace update and deletion behavior.
+Continue with P2-007, membership domain model.
 
 ## Session Update Rules
 

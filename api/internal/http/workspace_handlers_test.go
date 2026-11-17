@@ -20,6 +20,7 @@ type workspaceRepositoryStub struct {
 	createErr error
 	listErr   error
 	getErr    error
+	updateErr error
 }
 
 func (r *workspaceRepositoryStub) Create(_ context.Context, workspace workspaces.Workspace) error {
@@ -58,6 +59,21 @@ func (r *workspaceRepositoryStub) ListByOwner(_ context.Context, ownerUserID str
 		}
 	}
 	return items, nil
+}
+
+func (r *workspaceRepositoryStub) UpdateNameForOwner(_ context.Context, workspaceID string, ownerUserID string, name string) (workspaces.Workspace, error) {
+	if r.updateErr != nil {
+		return workspaces.Workspace{}, r.updateErr
+	}
+	for index, workspace := range r.items {
+		if workspace.ID == workspaceID && workspace.OwnerUserID == ownerUserID && workspace.DeletedAt == nil {
+			workspace.Name = strings.TrimSpace(name)
+			workspace.UpdatedAt = time.Now().UTC()
+			r.items[index] = workspace
+			return workspace, nil
+		}
+	}
+	return workspaces.Workspace{}, workspaces.ErrNotFound
 }
 
 func newWorkspaceHandlerTestServer(t *testing.T, repository workspaces.Repository) (*Server, string, string) {
@@ -181,6 +197,102 @@ func TestWorkspaceListAndGetAreOwnerScoped(t *testing.T) {
 	crossOwnerGet := workspaceRequest(server, http.MethodGet, "/api/v1/workspaces/"+other.ID, "", sessionToken, csrfToken)
 	if crossOwnerGet.Code != http.StatusNotFound {
 		t.Fatalf("cross-owner get status = %d, want %d", crossOwnerGet.Code, http.StatusNotFound)
+	}
+}
+
+func TestWorkspaceUpdateRenamesOnlyOwnedWorkspace(t *testing.T) {
+	owned, err := workspaces.NewWorkspace("Old Name", "stable-slug", "trusted-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned.UpdatedAt = time.Now().Add(-time.Hour).UTC()
+	other, err := workspaces.NewWorkspace("Other", "other", "different-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository := &workspaceRepositoryStub{items: []workspaces.Workspace{owned, other}}
+	server, sessionToken, csrfToken := newWorkspaceHandlerTestServer(t, repository)
+
+	response := workspaceRequest(
+		server,
+		http.MethodPatch,
+		"/api/v1/workspaces/"+owned.ID,
+		`{"name":" New Name "}`,
+		sessionToken,
+		csrfToken,
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("update status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var updated workspaces.Workspace
+	if err := json.Unmarshal(response.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode updated workspace: %v", err)
+	}
+	if updated.Name != "New Name" || updated.Slug != owned.Slug || updated.OwnerUserID != owned.OwnerUserID {
+		t.Fatalf("workspace update changed immutable fields or failed to rename: %#v", updated)
+	}
+	if !updated.UpdatedAt.After(owned.UpdatedAt) {
+		t.Fatalf("updatedAt = %s, want later than %s", updated.UpdatedAt, owned.UpdatedAt)
+	}
+
+	crossOwner := workspaceRequest(
+		server,
+		http.MethodPatch,
+		"/api/v1/workspaces/"+other.ID,
+		`{"name":"Attempted Rename"}`,
+		sessionToken,
+		csrfToken,
+	)
+	if crossOwner.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner update status = %d, want %d", crossOwner.Code, http.StatusNotFound)
+	}
+}
+
+func TestWorkspaceUpdateRejectsEmptyNameAndSlugChanges(t *testing.T) {
+	workspace, err := workspaces.NewWorkspace("Team", "team", "trusted-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, sessionToken, csrfToken := newWorkspaceHandlerTestServer(t, &workspaceRepositoryStub{
+		items: []workspaces.Workspace{workspace},
+	})
+	for _, body := range []string{
+		`{"name":"  "}`,
+		`{"name":"Renamed","slug":"renamed"}`,
+	} {
+		response := workspaceRequest(
+			server,
+			http.MethodPatch,
+			"/api/v1/workspaces/"+workspace.ID,
+			body,
+			sessionToken,
+			csrfToken,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("update body %s status = %d, want %d", body, response.Code, http.StatusBadRequest)
+		}
+	}
+}
+
+func TestWorkspaceUpdateMapsRepositoryFailureToInternalError(t *testing.T) {
+	workspace, err := workspaces.NewWorkspace("Team", "team", "trusted-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, sessionToken, csrfToken := newWorkspaceHandlerTestServer(t, &workspaceRepositoryStub{
+		items:     []workspaces.Workspace{workspace},
+		updateErr: errors.New("database unavailable"),
+	})
+	response := workspaceRequest(
+		server,
+		http.MethodPatch,
+		"/api/v1/workspaces/"+workspace.ID,
+		`{"name":"Renamed"}`,
+		sessionToken,
+		csrfToken,
+	)
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("update status = %d, want %d", response.Code, http.StatusInternalServerError)
 	}
 }
 

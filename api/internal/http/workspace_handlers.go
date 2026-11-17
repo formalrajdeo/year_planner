@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -14,6 +15,10 @@ import (
 type CreateWorkspaceRequest struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`
+}
+
+type UpdateWorkspaceRequest struct {
+	Name string `json:"name"`
 }
 
 func (s *Server) HandleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +105,53 @@ func (s *Server) HandleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "unable to load workspace")
+		return
+	}
+	writeJSON(w, http.StatusOK, workspace)
+}
+
+func (s *Server) HandleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
+	if s.workspaceRepo == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace service unavailable")
+		return
+	}
+	ownerUserID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	var request UpdateWorkspaceRequest
+	if r.Body == nil {
+		writeError(w, http.StatusBadRequest, "request body is required")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	if err := decodeWorkspaceJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(request.Name) == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	workspace, err := s.workspaceRepo.UpdateNameForOwner(
+		r.Context(),
+		chi.URLParam(r, "workspaceID"),
+		ownerUserID,
+		request.Name,
+	)
+	if errors.Is(err, workspaces.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "workspace not found")
+		return
+	}
+	if errors.Is(err, workspaces.ErrInvalidWorkspace) {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to update workspace")
 		return
 	}
 	writeJSON(w, http.StatusOK, workspace)

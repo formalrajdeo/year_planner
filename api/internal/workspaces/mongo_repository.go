@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -102,6 +104,38 @@ func (r *MongoRepository) ListByOwner(ctx context.Context, ownerUserID string) (
 		return nil, fmt.Errorf("decode workspaces for owner: %w", err)
 	}
 	return workspaces, nil
+}
+
+func (r *MongoRepository) UpdateNameForOwner(ctx context.Context, workspaceID string, ownerUserID string, name string) (Workspace, error) {
+	if workspaceID == "" || ownerUserID == "" {
+		return Workspace{}, ErrNotFound
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Workspace{}, ErrInvalidWorkspace
+	}
+
+	var workspace Workspace
+	err := r.collection.FindOneAndUpdate(
+		ctx,
+		bson.D{
+			{Key: "_id", Value: workspaceID},
+			{Key: "ownerUserId", Value: ownerUserID},
+			{Key: "deletedAt", Value: nil},
+		},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "name", Value: name},
+			{Key: "updatedAt", Value: time.Now().UTC()},
+		}}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&workspace)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return Workspace{}, ErrNotFound
+	}
+	if err != nil {
+		return Workspace{}, fmt.Errorf("update workspace name for owner: %w", err)
+	}
+	return workspace, nil
 }
 
 var _ Repository = (*MongoRepository)(nil)

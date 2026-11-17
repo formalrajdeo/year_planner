@@ -554,6 +554,10 @@ GET    /workspaces/:workspaceId
 PATCH  /workspaces/:workspaceId
 DELETE /workspaces/:workspaceId
 
+The workspace PATCH endpoint currently supports renaming only. Slug and owner
+are not client-updatable, and settings remain immutable until their fields are
+defined in product scope.
+
 Members:
 GET    /workspaces/:workspaceId/members
 PATCH  /workspaces/:workspaceId/members/:memberId

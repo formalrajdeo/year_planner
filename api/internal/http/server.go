@@ -182,6 +182,7 @@ func (s *Server) Router() http.Handler {
 		r.With(s.RequireAuth).Post("/workspaces", s.HandleCreateWorkspace)
 		r.With(s.RequireAuth).Get("/workspaces", s.HandleListWorkspaces)
 		r.With(s.RequireAuth).Get("/workspaces/{workspaceID}", s.HandleGetWorkspace)
+		r.With(s.RequireAuth).Patch("/workspaces/{workspaceID}", s.HandleUpdateWorkspace)
 	})
 
 	return r
