@@ -65,4 +65,32 @@ func (r *MongoRepository) GetByWorkspaceAndUser(ctx context.Context, workspaceID
 	return membership, nil
 }
 
+func (r *MongoRepository) ListActiveByWorkspace(ctx context.Context, workspaceID string) ([]Membership, error) {
+	if strings.TrimSpace(workspaceID) == "" {
+		return nil, ErrInvalidMembership
+	}
+
+	cursor, err := r.collection.Find(
+		ctx,
+		bson.D{
+			{Key: "workspaceId", Value: workspaceID},
+			{Key: "status", Value: MembershipStatusActive},
+		},
+		options.Find().SetSort(bson.D{
+			{Key: "userId", Value: 1},
+			{Key: "_id", Value: 1},
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list active memberships by workspace: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	memberships := make([]Membership, 0)
+	if err := cursor.All(ctx, &memberships); err != nil {
+		return nil, fmt.Errorf("decode active memberships by workspace: %w", err)
+	}
+	return memberships, nil
+}
+
 var _ Repository = (*MongoRepository)(nil)

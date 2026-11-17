@@ -334,6 +334,35 @@ paths:
           description: Workspace could not be updated
         '503':
           description: Workspace service unavailable
+  /api/v1/workspaces/{workspaceID}/members:
+    get:
+      summary: List active memberships in an owned workspace
+      description: Only the workspace owner may list memberships before RBAC is implemented. The owner is represented by ownerUserId on the workspace and is not included in this response.
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: workspaceID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active memberships in the workspace
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Membership'
+        '401':
+          description: Missing or invalid session
+        '404':
+          description: Workspace not found or not owned by the authenticated user
+        '500':
+          description: Workspace memberships could not be listed
+        '503':
+          description: Workspace membership service unavailable
 components:
   parameters:
     origin:
@@ -387,6 +416,40 @@ components:
         schemaVersion:
           type: integer
           minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Membership:
+      type: object
+      required: [id, workspaceId, userId, roleKey, grants, denies, status, acceptedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        userId:
+          type: string
+        roleKey:
+          type: string
+        grants:
+          type: array
+          items:
+            type: string
+        denies:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, removed]
+        invitedBy:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time

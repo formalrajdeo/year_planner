@@ -153,6 +153,7 @@ func TestDocsRoutes(t *testing.T) {
 		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/auth/password/reset:"},
 		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/workspaces:"},
 		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/workspaces/{workspaceID}:"},
+		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "/api/v1/workspaces/{workspaceID}/members:"},
 		{path: "/openapi/auth.yaml", contentType: "application/yaml; charset=utf-8", contains: "Rename a workspace owned by the authenticated user"},
 	}
 

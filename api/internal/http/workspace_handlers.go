@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"yearplanner/internal/memberships"
 	"yearplanner/internal/workspaces"
 )
 
@@ -155,6 +156,39 @@ func (s *Server) HandleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, workspace)
+}
+
+func (s *Server) HandleListWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
+	if s.workspaceRepo == nil || s.membershipRepo == nil {
+		writeError(w, http.StatusServiceUnavailable, "workspace membership service unavailable")
+		return
+	}
+	ownerUserID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	workspaceID := chi.URLParam(r, "workspaceID")
+	if _, err := s.workspaceRepo.GetByIDForOwner(r.Context(), workspaceID, ownerUserID); err != nil {
+		if errors.Is(err, workspaces.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "workspace not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "unable to authorize workspace membership listing")
+		return
+	}
+
+	members, err := s.membershipRepo.ListActiveByWorkspace(r.Context(), workspaceID)
+	if errors.Is(err, memberships.ErrInvalidMembership) {
+		writeError(w, http.StatusBadRequest, "invalid workspace")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "unable to list workspace members")
+		return
+	}
+	writeJSON(w, http.StatusOK, members)
 }
 
 func decodeWorkspaceJSON(r *http.Request, target any) error {

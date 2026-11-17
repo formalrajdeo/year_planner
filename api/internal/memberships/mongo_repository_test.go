@@ -69,6 +69,10 @@ func TestMongoRepositoryMembershipPersistenceAndUniqueness(t *testing.T) {
 	if _, err := repository.GetByWorkspaceAndUser(ctx, "workspace-2", "user-1"); !errors.Is(err, ErrMembershipNotFound) {
 		t.Fatalf("cross-workspace lookup error = %v, want %v", err, ErrMembershipNotFound)
 	}
+	activeMembers, err := repository.ListActiveByWorkspace(ctx, "workspace-1")
+	if err != nil || len(activeMembers) != 1 || activeMembers[0].ID != membership.ID {
+		t.Fatalf("active membership list = (%#v, %v), want only membership %q", activeMembers, err, membership.ID)
+	}
 
 	duplicateMembership, err := NewMembership("workspace-1", "user-1", "member", "inviter-1")
 	if err != nil {
@@ -96,6 +100,10 @@ func TestMongoRepositoryMembershipPersistenceAndUniqueness(t *testing.T) {
 	if err != nil || removed.Status != MembershipStatusRemoved {
 		t.Fatalf("get removed membership = (%#v, %v), want removed status", removed, err)
 	}
+	activeMembers, err = repository.ListActiveByWorkspace(ctx, "workspace-1")
+	if err != nil || len(activeMembers) != 0 {
+		t.Fatalf("active membership list after removal = (%#v, %v), want empty", activeMembers, err)
+	}
 	if err := repository.Create(ctx, duplicateMembership); !errors.Is(err, ErrMembershipExists) {
 		t.Fatalf("duplicate removed membership error = %v, want %v", err, ErrMembershipExists)
 	}
@@ -108,5 +116,8 @@ func TestMongoRepositoryRejectsInvalidMembership(t *testing.T) {
 	}
 	if _, err := repository.GetByWorkspaceAndUser(context.Background(), " ", "user-1"); !errors.Is(err, ErrInvalidMembership) {
 		t.Fatalf("lookup with blank workspace ID error = %v, want %v", err, ErrInvalidMembership)
+	}
+	if _, err := repository.ListActiveByWorkspace(context.Background(), " "); !errors.Is(err, ErrInvalidMembership) {
+		t.Fatalf("list with blank workspace ID error = %v, want %v", err, ErrInvalidMembership)
 	}
 }

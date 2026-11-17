@@ -9,12 +9,12 @@ Project: Year Planner SaaS
 
 Current Phase: Phase 2
 
-Current Task: P2-009
+Current Task: P2-010
 
 Session Status: IN PROGRESS
 
 Last Verified Task:
-P2-008
+P2-009
 
 Last Verified Commit:
 c08d5aa2cee501be3435208cfdc1165da7f1e298 (pushed to origin/master; GitHub Actions run 44078516910 passed)
@@ -98,6 +98,26 @@ Verification:
 
 Next:
 P2-009, membership listing.
+
+## Last Completed Work Segment
+
+Task ID:
+P2-009 / membership listing
+
+Completed:
+- Added workspace-scoped persistence for listing active memberships.
+- Added authenticated `GET /api/v1/workspaces/{workspaceID}/members`; ownership is verified before querying memberships.
+- Kept the owner separate from membership records and restricted listing to the owner until Phase 3 RBAC.
+- Documented the decision in ADR-018 and added the OpenAPI contract.
+
+Verification:
+- `go test ./...`
+- `go vet ./...`
+- MongoDB-backed membership persistence/listing integration test passed.
+- OpenAPI YAML parsed and membership listing schema/route were verified.
+
+Next:
+P2-010, invitation model.
 
 ## Earlier Work Segment
 

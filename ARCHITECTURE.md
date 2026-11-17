@@ -338,6 +338,10 @@ records are retained but must not grant access; pending invitation state stays
 in the invitations collection. `roleKey`, `grants`, and `denies` remain
 strings until the Phase 3 permission catalogue is defined.
 
+The workspace owner remains represented by `workspaces.ownerUserId`, not a
+membership record. Until Phase 3 RBAC is available, only the workspace owner
+may list active membership records.
+
 ### invitations
 
 Fields:
@@ -567,6 +571,9 @@ Members:
 GET    /workspaces/:workspaceId/members
 PATCH  /workspaces/:workspaceId/members/:memberId
 DELETE /workspaces/:workspaceId/members/:memberId
+
+The member-list endpoint returns active membership records only. The owner is
+not included because ownership is represented separately on the workspace.
 
 Invitations:
 POST   /workspaces/:workspaceId/invitations

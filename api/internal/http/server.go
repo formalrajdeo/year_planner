@@ -22,6 +22,7 @@ import (
 
 	"yearplanner/internal/auth"
 	"yearplanner/internal/config"
+	"yearplanner/internal/memberships"
 	"yearplanner/internal/store"
 	"yearplanner/internal/users"
 	"yearplanner/internal/workspaces"
@@ -36,16 +37,17 @@ const (
 )
 
 type Server struct {
-	cfg           config.Config
-	repo          users.Repository
-	workspaceRepo workspaces.Repository
-	session       store.SessionRepository
-	database      store.Pinger
-	loginLimiter  auth.LoginRateLimiter
-	resetTokens   auth.PasswordResetStore
-	emailQueue    auth.PasswordResetEmailQueue
-	sessionTTL    time.Duration
-	allowedOrigin map[string]struct{}
+	cfg            config.Config
+	repo           users.Repository
+	membershipRepo memberships.Repository
+	workspaceRepo  workspaces.Repository
+	session        store.SessionRepository
+	database       store.Pinger
+	loginLimiter   auth.LoginRateLimiter
+	resetTokens    auth.PasswordResetStore
+	emailQueue     auth.PasswordResetEmailQueue
+	sessionTTL     time.Duration
+	allowedOrigin  map[string]struct{}
 }
 
 type RegisterRequest struct {
@@ -153,8 +155,33 @@ func NewServerWithWorkspaceRepository(
 	emailQueue auth.PasswordResetEmailQueue,
 	workspaceRepo workspaces.Repository,
 ) *Server {
+	return NewServerWithWorkspaceAndMembershipRepositories(
+		cfg,
+		repo,
+		sessions,
+		database,
+		loginLimiter,
+		resetTokens,
+		emailQueue,
+		workspaceRepo,
+		nil,
+	)
+}
+
+func NewServerWithWorkspaceAndMembershipRepositories(
+	cfg config.Config,
+	repo users.Repository,
+	sessions store.SessionRepository,
+	database store.Pinger,
+	loginLimiter auth.LoginRateLimiter,
+	resetTokens auth.PasswordResetStore,
+	emailQueue auth.PasswordResetEmailQueue,
+	workspaceRepo workspaces.Repository,
+	membershipRepo memberships.Repository,
+) *Server {
 	server := NewServerWithAuthDependencies(cfg, repo, sessions, database, loginLimiter, resetTokens, emailQueue)
 	server.workspaceRepo = workspaceRepo
+	server.membershipRepo = membershipRepo
 	return server
 }
 
@@ -183,6 +210,7 @@ func (s *Server) Router() http.Handler {
 		r.With(s.RequireAuth).Get("/workspaces", s.HandleListWorkspaces)
 		r.With(s.RequireAuth).Get("/workspaces/{workspaceID}", s.HandleGetWorkspace)
 		r.With(s.RequireAuth).Patch("/workspaces/{workspaceID}", s.HandleUpdateWorkspace)
+		r.With(s.RequireAuth).Get("/workspaces/{workspaceID}/members", s.HandleListWorkspaceMembers)
 	})
 
 	return r

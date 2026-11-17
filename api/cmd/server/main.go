@@ -102,7 +102,7 @@ func run() error {
 		}
 		emailQueue = mongoEmailQueue
 	}
-	server := httpapi.NewServerWithWorkspaceRepository(
+	server := httpapi.NewServerWithWorkspaceAndMembershipRepositories(
 		cfg,
 		userRepository,
 		sessionRepository,
@@ -111,6 +111,7 @@ func run() error {
 		resetTokenStore,
 		emailQueue,
 		workspaceRepository,
+		membershipRepository,
 	)
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.AppPort),

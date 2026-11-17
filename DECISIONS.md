@@ -326,6 +326,39 @@ created.
 Approved by:
 Project owner (global uniqueness)
 
+## ADR-018 — Workspace Membership Listing
+
+Status: ACCEPTED
+
+Decision:
+Keep workspace ownership in `ownerUserId`, separate from membership records.
+The workspace member-list endpoint returns active membership records only and
+is restricted to the workspace owner until Phase 3 RBAC is implemented.
+
+Reason:
+This preserves the existing ownership model and avoids granting roster access
+to other users before membership-read permissions exist.
+
+Consequences:
+- Removed memberships are excluded from the roster but remain stored.
+- The owner is not synthesized into the member-list response.
+- RBAC may later authorize other roles to list members.
+
+Affected files:
+- `ARCHITECTURE.md`
+- `api/openapi/auth.yaml`
+- `api/internal/http/`
+- `api/internal/memberships/`
+
+Related task IDs:
+- P2-009
+
+Migration impact:
+None.
+
+Approved by:
+Project owner (owner separate; owner-only listing)
+
 ---
 
 ## New Decision Template

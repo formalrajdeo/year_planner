@@ -35,9 +35,9 @@ Project Status: IN PROGRESS
 
 Current Phase: Phase 2
 
-Current Task: P2-009
+Current Task: P2-010
 
-Last Verified Task: P2-008
+Last Verified Task: P2-009
 
 Last Updated: 2026-11-17
 
@@ -120,7 +120,7 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 - [x] P2-006 Implement workspace update (owner-scoped rename)
 - [x] P2-007 Implement membership model
 - [x] P2-008 Implement membership repository
-- [ ] P2-009 Implement membership listing
+- [x] P2-009 Implement membership listing
 - [ ] P2-010 Implement invitation model
 - [ ] P2-011 Implement secure invitation tokens
 - [ ] P2-012 Implement invitation creation
@@ -158,6 +158,14 @@ Files modified: `api/internal/memberships/repository.go`, `api/internal/membersh
 Tests executed: `go test ./...`; `go vet ./...`; MongoDB-backed `TestMongoRepositoryMembershipPersistenceAndUniqueness`.
 Test result: Passed, including the opt-in integration test against the configured local MongoDB; GitHub Actions run 44078516910 passed on commit `c08d5aa2cee501be3435208cfdc1165da7f1e298`.
 Review status: Self-reviewed; authorization checks are required by future service callers because lookups include removed records.
+Completion date: 2026-11-17.
+
+P2-009 completion evidence:
+Implementation summary: Added an owner-only workspace member-list endpoint that returns active memberships and keeps the owner separate from membership records.
+Files modified: `api/internal/memberships/repository.go`, `api/internal/memberships/mongo_repository.go`, `api/internal/memberships/mongo_repository_test.go`, `api/internal/http/server.go`, `api/internal/http/workspace_handlers.go`, `api/internal/http/membership_handlers_test.go`, `api/internal/http/server_test.go`, `api/cmd/server/main.go`, `api/openapi/auth.yaml`, `ARCHITECTURE.md`, `DECISIONS.md`.
+Tests executed: `go test ./...`; `go vet ./...`; MongoDB-backed `TestMongoRepositoryMembershipPersistenceAndUniqueness`; OpenAPI YAML parse and membership contract assertion.
+Test result: Passed.
+Review status: Self-reviewed; cross-owner requests are returned as not found before membership queries.
 Completion date: 2026-11-17.
 
 P2-022/P2-023 were added after reviewing approved product scope: workspace deletion and ownership transfer are required but had no implementation task.
@@ -337,7 +345,7 @@ Current Phase:
 Phase 2
 
 Current Task:
-P2-009
+P2-010
 
 Assigned Agent:
 Primary coding agent
@@ -346,7 +354,7 @@ Started:
 Not started
 
 Expected Outcome:
-Workspace-scoped membership listing with appropriate authorization and API documentation.
+Typed invitation model with validation and serialization coverage.
 
 ## 15. Completion Evidence
 
