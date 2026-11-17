@@ -156,7 +156,7 @@ P2-008 completion evidence:
 Implementation summary: Added validated membership creation and workspace/user-scoped lookup, a unique compound index, and startup index creation.
 Files modified: `api/internal/memberships/repository.go`, `api/internal/memberships/mongo_repository.go`, `api/internal/memberships/mongo_repository_test.go`, `api/cmd/server/main.go`.
 Tests executed: `go test ./...`; `go vet ./...`; MongoDB-backed `TestMongoRepositoryMembershipPersistenceAndUniqueness`.
-Test result: Passed, including the opt-in integration test against the configured local MongoDB.
+Test result: Passed, including the opt-in integration test against the configured local MongoDB; GitHub Actions run 44078516910 passed on commit `c08d5aa2cee501be3435208cfdc1165da7f1e298`.
 Review status: Self-reviewed; authorization checks are required by future service callers because lookups include removed records.
 Completion date: 2026-11-17.
 
