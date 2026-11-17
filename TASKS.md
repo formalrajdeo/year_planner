@@ -132,7 +132,9 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 - [ ] P2-018 Implement tenant scope helpers
 - [ ] P2-019 Add personal data isolation tests
 - [ ] P2-020 Add workspace isolation tests
-- [ ] P2-021 Verify multi-tenancy phase
+- [ ] P2-021 Verify multi-tenancy phase (after P2-022 and P2-023)
+- [ ] P2-022 Implement workspace soft deletion (after membership removal and tenant scope)
+- [!] P2-023 Resolve and implement workspace ownership transfer
 
 P2-001 verification: `go test ./...` and `go vet ./...` passed. Tests cover constructor defaults, required-field validation, and JSON/BSON field mappings.
 
@@ -140,7 +142,9 @@ P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `Te
 
 P2-003–P2-005 verification: `go test ./...` and `go vet ./...` passed. HTTP tests cover authenticated creation, trusted owner identity, CSRF, owner-scoped listing/retrieval, duplicate-slug conflicts, and storage failures. The OpenAPI YAML parsed successfully and documents the workspace endpoints. GitHub Actions CI run 44072914892 passed on commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`.
 
-P2-006 verification: `go test ./...` and `go vet ./...` passed. HTTP and MongoDB integration tests cover owner-only rename, not-found for cross-owner/deleted workspaces, unchanged slug and owner, updated timestamps, invalid names, and storage errors. OpenAPI YAML validation confirms the PATCH request accepts only `name`.
+P2-006 verification: `go test ./...` and `go vet ./...` passed. HTTP and MongoDB integration tests cover owner-only rename, not-found for cross-owner/deleted workspaces, unchanged slug and owner, updated timestamps, invalid names, and storage errors. OpenAPI YAML validation confirms the PATCH request accepts only `name`. GitHub Actions run 44074306056 passed on commit `ce6e86da059b1125afefbd5ae24eef08bb97476b`.
+
+P2-022/P2-023 were added after reviewing approved product scope: workspace deletion and ownership transfer are required but had no implementation task.
 
 P0-032 verification: GitHub Actions CI run 44070384027 passed on commit `981b3afc47712843dc679a70f299c1e4ac636561`, including Go checks, frontend checks, and Docker image build.
 
@@ -344,7 +348,11 @@ A checked box without evidence is not accepted.
 
 ## 16. Blockers
 
-No blockers recorded.
+Task ID: P2-023
+Blocker: SCOPE.md requires workspace ownership transfer, but ARCHITECTURE.md does not define its endpoint or transfer/authorization policy.
+Impact: Implementing transfer now would require guessing ownership, membership, and audit behavior.
+Required decision: Approve the transfer API and state-transition rules.
+Proposed resolution: Define a protected owner-transfer contract, validate the target member, and record the transfer in audit events before implementation.
 
 When a task is blocked, record:
 

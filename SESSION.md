@@ -17,7 +17,7 @@ Last Verified Task:
 P2-006
 
 Last Verified Commit:
-0d9816fa1194e32280cd105858ec8a4d89b351c1 (pushed to origin/master)
+ce6e86da059b1125afefbd5ae24eef08bb97476b (pushed to origin/master)
 
 P0-032 is complete: the project was pushed to `origin/master`, and GitHub Actions CI passed.
 
@@ -25,6 +25,7 @@ P0-032 is complete: the project was pushed to `origin/master`, and GitHub Action
 
 - Pushed commit `981b3afc47712843dc679a70f299c1e4ac636561` to `origin/master`; GitHub Actions run 44070384027 passed Go checks, frontend checks, and Docker image build.
 - Pushed workspace API commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`; GitHub Actions run 44072914892 passed all checks.
+- Pushed workspace rename commit `ce6e86da059b1125afefbd5ae24eef08bb97476b`; GitHub Actions run 44074306056 passed all checks.
 
 - Added MongoDB client configuration with bounded connection/server selection timeouts, max pool configuration, startup ping, graceful disconnect, and readiness health check.
 - Added MongoDB user persistence with a unique email index and MongoDB-backed sessions that store token hashes and use a TTL index.
@@ -73,6 +74,7 @@ Verification:
 - `go vet ./...`
 - MongoDB-backed repository integration test passed for rename, owner isolation, invalid names, and soft-deleted workspaces.
 - OpenAPI YAML schema and PATCH request shape validated.
+- GitHub Actions run 44074306056 passed on commit `ce6e86da059b1125afefbd5ae24eef08bb97476b`.
 
 Next:
 P2-007, membership domain model.
@@ -165,6 +167,8 @@ Results:
 - The local MongoDB root account is configured only for development. Production must use a dedicated least-privilege database user and managed secrets.
 - Production deployment must configure a verified SMTP relay, HTTPS `APP_BASE_URL`, and a stable 32-byte-or-longer `SESSION_SECRET`.
 - Login limits use the direct TCP peer. Deployments behind a reverse proxy need a trusted-proxy configuration before relying on per-client IP limits.
+- Workspace deletion and ownership transfer are required by product scope but are not implemented; P2-022 and P2-023 are tracked before multi-tenancy phase verification.
+- P2-023 is blocked because ownership-transfer API and authorization rules are not defined in architecture.
 - Remaining Phase 2 tasks and Phases 3-6 are not implemented yet.
 
 ## Important Context
