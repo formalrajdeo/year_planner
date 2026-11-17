@@ -138,7 +138,7 @@ P2-001 verification: `go test ./...` and `go vet ./...` passed. Tests cover cons
 
 P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `TestMongoRepositoryTenantScopingAndGlobalSlugUniqueness` passed. The integration test verifies owner-scoped get/list, global slug conflict including soft-deleted workspaces, and index creation. API startup now creates the workspace indexes.
 
-P2-003–P2-005 verification: `go test ./...` and `go vet ./...` passed. HTTP tests cover authenticated creation, trusted owner identity, CSRF, owner-scoped listing/retrieval, duplicate-slug conflicts, and storage failures. The OpenAPI YAML parsed successfully and documents the workspace endpoints.
+P2-003–P2-005 verification: `go test ./...` and `go vet ./...` passed. HTTP tests cover authenticated creation, trusted owner identity, CSRF, owner-scoped listing/retrieval, duplicate-slug conflicts, and storage failures. The OpenAPI YAML parsed successfully and documents the workspace endpoints. GitHub Actions CI run 44072914892 passed on commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`.
 
 P0-032 verification: GitHub Actions CI run 44070384027 passed on commit `981b3afc47712843dc679a70f299c1e4ac636561`, including Go checks, frontend checks, and Docker image build.
 

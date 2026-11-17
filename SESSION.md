@@ -17,13 +17,14 @@ Last Verified Task:
 P2-005
 
 Last Verified Commit:
-981b3afc47712843dc679a70f299c1e4ac636561 (pushed to origin/master)
+0d9816fa1194e32280cd105858ec8a4d89b351c1 (pushed to origin/master)
 
 P0-032 is complete: the project was pushed to `origin/master`, and GitHub Actions CI passed.
 
 ## Last Completed Work
 
 - Pushed commit `981b3afc47712843dc679a70f299c1e4ac636561` to `origin/master`; GitHub Actions run 44070384027 passed Go checks, frontend checks, and Docker image build.
+- Pushed workspace API commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`; GitHub Actions run 44072914892 passed all checks.
 
 - Added MongoDB client configuration with bounded connection/server selection timeouts, max pool configuration, startup ping, graceful disconnect, and readiness health check.
 - Added MongoDB user persistence with a unique email index and MongoDB-backed sessions that store token hashes and use a TTL index.
@@ -52,6 +53,7 @@ Verification:
 - `go test ./...`
 - `go vet ./...`
 - OpenAPI YAML parsed and workspace endpoint paths verified.
+- GitHub Actions run 44072914892 passed on commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`.
 
 Next:
 P2-006, workspace update and deletion behavior.
