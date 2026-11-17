@@ -333,6 +333,11 @@ Fields:
 Index:
 Unique workspaceId + userId.
 
+Membership status values are `active` and `removed`. Removed membership
+records are retained but must not grant access; pending invitation state stays
+in the invitations collection. `roleKey`, `grants`, and `denies` remain
+strings until the Phase 3 permission catalogue is defined.
+
 ### invitations
 
 Fields:

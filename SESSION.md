@@ -9,15 +9,15 @@ Project: Year Planner SaaS
 
 Current Phase: Phase 2
 
-Current Task: P2-007
+Current Task: P2-009
 
 Session Status: IN PROGRESS
 
 Last Verified Task:
-P2-006
+P2-008
 
 Last Verified Commit:
-ce6e86da059b1125afefbd5ae24eef08bb97476b (pushed to origin/master)
+ce6e86da059b1125afefbd5ae24eef08bb97476b (pushed to origin/master; P2-007 and P2-008 are locally verified and pending push)
 
 P0-032 is complete: the project was pushed to `origin/master`, and GitHub Actions CI passed.
 
@@ -78,6 +78,25 @@ Verification:
 
 Next:
 P2-007, membership domain model.
+
+## Last Completed Work Segment
+
+Task ID:
+P2-007–P2-008 / membership model and repository
+
+Completed:
+- Added the typed membership model with active/removed statuses, UTC timestamps, validation, and JSON/BSON serialization coverage.
+- Documented that pending invitation state belongs to invitations and that role/permission strings remain open until Phase 3.
+- Added the membership repository with validated creation, scoped lookup by workspace and user, and a unique compound index.
+- Wired membership index creation into API startup.
+
+Verification:
+- `go test ./...`
+- `go vet ./...`
+- MongoDB-backed membership persistence/uniqueness integration test passed using the configured local database.
+
+Next:
+P2-009, membership listing.
 
 ## Earlier Work Segment
 

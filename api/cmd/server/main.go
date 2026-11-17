@@ -14,6 +14,7 @@ import (
 	"yearplanner/internal/auth"
 	"yearplanner/internal/config"
 	httpapi "yearplanner/internal/http"
+	"yearplanner/internal/memberships"
 	"yearplanner/internal/store"
 	"yearplanner/internal/users"
 	"yearplanner/internal/workspaces"
@@ -55,6 +56,7 @@ func run() error {
 
 	userRepository := users.NewMongoRepository(database.Collection("users"))
 	workspaceRepository := workspaces.NewMongoRepository(database.Collection("workspaces"))
+	membershipRepository := memberships.NewMongoRepository(database.Collection("memberships"))
 	sessionRepository := store.NewMongoSessionStore(database.Collection("sessions"))
 	loginLimiter := store.NewMongoLoginRateLimiter(database.Collection("auth_rate_limits"), cfg.SessionSecret)
 	resetTokenStore := store.NewMongoPasswordResetStore(database.Collection("password_reset_tokens"))
@@ -65,6 +67,9 @@ func run() error {
 	}
 	if err := workspaceRepository.EnsureIndexes(indexCtx); err != nil {
 		return fmt.Errorf("create workspace indexes: %w", err)
+	}
+	if err := membershipRepository.EnsureIndexes(indexCtx); err != nil {
+		return fmt.Errorf("create membership indexes: %w", err)
 	}
 	if err := sessionRepository.EnsureIndexes(indexCtx); err != nil {
 		return fmt.Errorf("create session indexes: %w", err)

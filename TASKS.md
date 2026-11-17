@@ -35,9 +35,9 @@ Project Status: IN PROGRESS
 
 Current Phase: Phase 2
 
-Current Task: P2-007
+Current Task: P2-009
 
-Last Verified Task: P2-006
+Last Verified Task: P2-008
 
 Last Updated: 2026-11-17
 
@@ -118,8 +118,8 @@ Phase 1 verification: `go test ./...`, `go vet ./...`, `go test -race ./...`, fr
 - [x] P2-004 Implement workspace creation
 - [x] P2-005 Implement workspace listing
 - [x] P2-006 Implement workspace update (owner-scoped rename)
-- [ ] P2-007 Implement membership model
-- [ ] P2-008 Implement membership repository
+- [x] P2-007 Implement membership model
+- [x] P2-008 Implement membership repository
 - [ ] P2-009 Implement membership listing
 - [ ] P2-010 Implement invitation model
 - [ ] P2-011 Implement secure invitation tokens
@@ -143,6 +143,22 @@ P2-002 verification: `go test ./...`, `go vet ./...`, and the MongoDB-backed `Te
 P2-003–P2-005 verification: `go test ./...` and `go vet ./...` passed. HTTP tests cover authenticated creation, trusted owner identity, CSRF, owner-scoped listing/retrieval, duplicate-slug conflicts, and storage failures. The OpenAPI YAML parsed successfully and documents the workspace endpoints. GitHub Actions CI run 44072914892 passed on commit `0d9816fa1194e32280cd105858ec8a4d89b351c1`.
 
 P2-006 verification: `go test ./...` and `go vet ./...` passed. HTTP and MongoDB integration tests cover owner-only rename, not-found for cross-owner/deleted workspaces, unchanged slug and owner, updated timestamps, invalid names, and storage errors. OpenAPI YAML validation confirms the PATCH request accepts only `name`. GitHub Actions run 44074306056 passed on commit `ce6e86da059b1125afefbd5ae24eef08bb97476b`.
+
+P2-007 completion evidence:
+Implementation summary: Added the typed membership model, active/removed states, validation, and serialization coverage; documented the lifecycle without defining Phase 3 roles or permissions.
+Files modified: `api/internal/memberships/membership.go`, `api/internal/memberships/membership_test.go`, `ARCHITECTURE.md`.
+Tests executed: `go test ./...`; `go vet ./...`.
+Test result: Passed.
+Review status: Self-reviewed.
+Completion date: 2026-11-17.
+
+P2-008 completion evidence:
+Implementation summary: Added validated membership creation and workspace/user-scoped lookup, a unique compound index, and startup index creation.
+Files modified: `api/internal/memberships/repository.go`, `api/internal/memberships/mongo_repository.go`, `api/internal/memberships/mongo_repository_test.go`, `api/cmd/server/main.go`.
+Tests executed: `go test ./...`; `go vet ./...`; MongoDB-backed `TestMongoRepositoryMembershipPersistenceAndUniqueness`.
+Test result: Passed, including the opt-in integration test against the configured local MongoDB.
+Review status: Self-reviewed; authorization checks are required by future service callers because lookups include removed records.
+Completion date: 2026-11-17.
 
 P2-022/P2-023 were added after reviewing approved product scope: workspace deletion and ownership transfer are required but had no implementation task.
 
@@ -321,7 +337,7 @@ Current Phase:
 Phase 2
 
 Current Task:
-P2-007
+P2-009
 
 Assigned Agent:
 Primary coding agent
@@ -330,7 +346,7 @@ Started:
 Not started
 
 Expected Outcome:
-Membership domain model.
+Workspace-scoped membership listing with appropriate authorization and API documentation.
 
 ## 15. Completion Evidence
 
